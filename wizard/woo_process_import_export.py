@@ -382,7 +382,26 @@ class woo_process_import_export(models.TransientModel):
             sale_order_obj.update_woo_order_status(instance)
         return True
 
-    def prepare_product_image_ids(self):
+    def prepare_product_for_update(self,odoo_template, woo_template, instance):
+        woo_product_image_obj = self.env['woo.product.image.ept']
+        woo_template.write({
+            'description': odoo_template.quick_description,
+        })
+        woo_template.woo_gallery_image_ids.unlink()
+        if odoo_template.image:
+            woo_product_image_obj.create(
+                {'sequence': 0, 'woo_instance_id': instance.id, 'image': odoo_template.image,
+                 'woo_product_tmpl_id': woo_template.id})
+            print('prepare main image ')
+        if odoo_template.product_image_ids:
+            i = 0
+            print('prepare image')
+            for image in odoo_template.product_image_ids:
+                i += 1
+                woo_product_image_obj.create(
+                    {'sequence': i, 'woo_instance_id': instance.id, 'image': image.image,
+                     'woo_product_tmpl_id': woo_template.id})
+
         return
 
     @api.multi
@@ -407,33 +426,32 @@ class woo_process_import_export(models.TransientModel):
                     continue
                 woo_template = woo_template_obj.search(
                     [('woo_instance_id', '=', instance.id), ('product_tmpl_id', '=', odoo_template.id)])
+                if woo_template:
+                    self.prepare_product_for_update(odoo_template, woo_template, instance)
                 if not woo_template:
-                    categ_obj_ids = odoo_template.public_categ_ids or ''
-                    if categ_obj_ids:
-                        for categ_obj in categ_obj_ids:
-                            self.create_categ_in_woo(categ_obj, instance)  # create category
-                            ctg = categ_obj.name.lower().replace('\'', '\'\'')
-                            self._cr.execute(
-                                "select id from woo_product_categ_ept where LOWER(name) = '%s' and woo_instance_id = %s limit 1" % (
-                                    ctg, instance.id))
-                            woo_product_categ_id = self._cr.dictfetchall()
-                            woo_categ_id = False
-                            if woo_product_categ_id:
-                                woo_categ_id = woo_product_categ.browse(woo_product_categ_id[0].get('id'))
-                            if not woo_categ_id:
-                                woo_categ_id = woo_product_categ.create(
-                                    {'name': categ_obj.name, 'woo_instance_id': instance.id})
-                            else:
-                                woo_categ_id.write({'name': categ_obj.name})
-                            perpare_woo_categ.append(woo_categ_id.id)
-                        woo_categ_ids = [(6, 0, perpare_woo_categ)]
-                    # update_name_template
-                    full_name_list = odoo_template.name.split()
-                    name_list = [x for x in full_name_list if x.isalnum() == True]
-                    name = ' '.join(name_list)
+                    categ_obj_ids = odoo_template.public_categ_ids
+                    if not categ_obj_ids:
+                        continue
+                    for categ_obj in categ_obj_ids:
+                        self.create_categ_in_woo(categ_obj, instance)  # create category
+                        ctg = categ_obj.name.lower().replace('\'', '\'\'')
+                        self._cr.execute(
+                            "select id from woo_product_categ_ept where LOWER(name) = '%s' and woo_instance_id = %s limit 1" % (
+                                ctg, instance.id))
+                        woo_product_categ_id = self._cr.dictfetchall()
+                        woo_categ_id = False
+                        if woo_product_categ_id:
+                            woo_categ_id = woo_product_categ.browse(woo_product_categ_id[0].get('id'))
+                        if not woo_categ_id:
+                            woo_categ_id = woo_product_categ.create(
+                                {'name': categ_obj.name, 'woo_instance_id': instance.id})
+                        else:
+                            woo_categ_id.write({'name': categ_obj.name})
+                        perpare_woo_categ.append(woo_categ_id.id)
+                    woo_categ_ids = [(6, 0, perpare_woo_categ)]
                     woo_template = woo_template_obj.create(
                         {'woo_instance_id': instance.id, 'product_tmpl_id': odoo_template.id,
-                         'name': name, 'woo_categ_ids': woo_categ_ids,
+                         'name': odoo_template.name, 'woo_categ_ids': woo_categ_ids,
                          'description': odoo_template.quick_description,
                          'short_description': odoo_template.description})
                     if odoo_template.image:

@@ -636,7 +636,19 @@ class woo_product_template_ept(models.Model):
                  'woo_instance_id': instance.id
                  })
             return False
-        attribute_response = attribute_res.json()
+
+        try:
+            attribute_response = attribute_res.json()
+        except Exception as e:
+            transaction_log_obj.create({
+                'message': "%s. \n%s .\n%s .\n%s" % (
+                    instance.name, e, attribute_res.content, attribute.name),
+                'mismatch_details': True,
+                'type': 'product',
+                'woo_instance_id': instance.id
+            })
+            return False
+
         if instance.woo_version == 'old':
             attribute_response = attribute_response.get('product_attribute')
         woo_attribute_id = attribute_response.get('id')
@@ -2503,6 +2515,11 @@ class woo_product_template_ept(models.Model):
                                 del info['variations']
                                 info.update({'managing_stock': True, 'stock_quantity': int(quantity)})
                                 flag = True
+                        else:
+                            quantity = self.get_stock(variant, instance.warehouse_id.id, instance.stock_field.name)
+                            info.update(
+                                {'id': template.woo_tmpl_id, 'managing_stock': True, 'stock_quantity': int(quantity)})
+                            flag = True
                     flag and batch_update_data.append(info)
                 if batch_update:
                     batch_update.update({'products': batch_update_data})
@@ -2662,9 +2679,12 @@ class woo_product_template_ept(models.Model):
         wcapi = instance.connect_in_woo()
         for woo_template in woo_templates:
             for variant in woo_template.woo_product_ids:
-                if variant.variant_id:
+                if not variant.variant_id:
                     price = instance.pricelist_id.get_product_price(variant.product_id, 1.0, partner=False,
                                                                     uom_id=variant.product_id.uom_id.id)
+                    data = {'product': {'regular_price': price, 'sale_price': price}}
+                    wcapi.put('products/%s' % (woo_template.woo_tmpl_id), data)
+                else:
                     data = {'product': {'regular_price': price, 'sale_price': price}}
                     res = wcapi.put('products/%s' % (variant.variant_id), data)
                     if not isinstance(res, requests.models.Response):
@@ -2844,21 +2864,21 @@ class woo_product_template_ept(models.Model):
             options = []
             for option in attribute_line.value_ids:
                 options.append(option.name)
-
-            slug = re.sub('[^A-Za-z0-9]+', '-', attribute_line.attribute_id.name.lower())
-            attribute_data = {'name': attribute_line.attribute_id.name,
+            name = re.sub('[^A-Za-z0-9]+', ' ', attribute_line.attribute_id.name)
+            slug = re.sub('[^A-Za-z0-9]+', '-', attribute_line.attribute_id.name.strip().lower())
+            attribute_data = {'name': name.strip(),
                               'slug': slug,
                               'position': position,
                               'visible': True,
                               'variation': attribute_line.attribute_id.create_variant,
                               'options': options}
-            if instance.attribute_type == 'select':
-                attrib_data = self.export_product_attributes_in_woo(instance, attribute_line.attribute_id)
-                if not attrib_data:
-                    break
-                attribute_data.update({'id': attrib_data.get(attribute_line.attribute_id.id)})
-            elif instance.attribute_type == 'text':
-                attribute_data.update({'name': attribute_line.attribute_id.name})
+            # if instance.attribute_type == 'select':
+            attrib_data = self.export_product_attributes_in_woo(instance, attribute_line.attribute_id)
+            if not attrib_data:
+                continue
+            attribute_data.update({'id': attrib_data.get(attribute_line.attribute_id.id)})
+            # elif instance.attribute_type == 'text':
+            #     attribute_data.update({'name': attribute_line.attribute_id.name})
             position += 1
             if attribute_line.attribute_id.create_variant:
                 is_variable = True
@@ -3116,8 +3136,7 @@ class woo_product_template_ept(models.Model):
                 variations.append(variation_data)
             default_att = variations and variations[0].get('attributes') or []
             data.update({'attributes': attributes, 'default_attributes': default_att, 'variations': variations})
-            if data.get('type') == 'simple':
-                data.update({'sku': str(variant.default_code)})
+            data.update({'sku': str(variant.default_code)})
         else:
             variant = woo_template.woo_product_ids
             data.update(self.get_variant_data(variant, instance, update_image))
