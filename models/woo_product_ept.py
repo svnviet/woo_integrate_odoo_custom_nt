@@ -2679,12 +2679,15 @@ class woo_product_template_ept(models.Model):
         wcapi = instance.connect_in_woo()
         for woo_template in woo_templates:
             for variant in woo_template.woo_product_ids:
+                price = woo_template.product_tmpl_id.list_price
                 if not variant.variant_id:
-                    price = instance.pricelist_id.get_product_price(variant.product_id, 1.0, partner=False,
-                                                                    uom_id=variant.product_id.uom_id.id)
+                    # price = instance.pricelist_id.get_product_price(variant.product_id, 1.0, partner=False,
+                    #                                                 uom_id=variant.product_id.uom_id.id)
                     data = {'product': {'regular_price': price, 'sale_price': price}}
                     wcapi.put('products/%s' % (woo_template.woo_tmpl_id), data)
                 else:
+                    # price = instance.pricelist_id.get_product_price(variant.product_id, 1.0, partner=False,
+                    #                                                 uom_id=variant.product_id.uom_id.id)
                     data = {'product': {'regular_price': price, 'sale_price': price}}
                     res = wcapi.put('products/%s' % (variant.variant_id), data)
                     if not isinstance(res, requests.models.Response):
