@@ -3,6 +3,9 @@ from odoo.exceptions import Warning
 from _collections import OrderedDict
 from _datetime import datetime
 from datetime import datetime
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class woo_process_import_export(models.TransientModel):
@@ -382,7 +385,7 @@ class woo_process_import_export(models.TransientModel):
             sale_order_obj.update_woo_order_status(instance)
         return True
 
-    def prepare_product_for_update(self,odoo_template, woo_template, instance):
+    def prepare_product_for_update(self, odoo_template, woo_template, instance):
         woo_product_image_obj = self.env['woo.product.image.ept']
         woo_template.write({
             'description': odoo_template.quick_description,
@@ -404,8 +407,18 @@ class woo_process_import_export(models.TransientModel):
 
         return
 
-    @api.multi
     def prepare_product_for_export(self):
+        _logger.info('Start compute barcode')
+        brand = self.env['product.brand'].search([('name', '=', 'Bru')])
+        product_tmpl = self.env['product.template'].search([('product_brand_id', '=', brand.id), ('product_tw_id', '=', True)])
+        for product in product_tmpl:
+            _logger.info(str(product.product_tw_id))
+            product.barcode = product.product_tw_id
+        # self.prepare_sync_product_bru(product_tmpl.ids)
+
+    @api.multi
+    def prepare_sync_product_bru(self):
+        _logger.info('---------------------------------------------')
         woo_template_obj = self.env['woo.product.template.ept']
         woo_product_obj = self.env['woo.product.product.ept']
         woo_product_categ = self.env['woo.product.categ.ept']
@@ -415,6 +428,8 @@ class woo_process_import_export(models.TransientModel):
         odoo_templates = template_ids.filtered(lambda template: template.type == 'product')
         if not odoo_templates:
             raise Warning(_('It seems like selected products are not Storable Products.'))
+        for template in self.env['product.template'].search([('id', 'in', template_ids.ids), ('barcode', '=', False)]):
+            template.barcode = template.product_tw_id
         odoo_templates = self.env['product.template'].search([('id', 'in', template_ids.ids), ('barcode', '!=', False)])
         if not odoo_templates:
             raise Warning("Barcode (SKU) not set in selected products")

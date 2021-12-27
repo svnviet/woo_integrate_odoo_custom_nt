@@ -48,7 +48,7 @@
 						<p> Click on "Update Product Categories" button to update the selected product categories and it's <b>parent categories</b> in WooCommerce</p>
 					</group>					
                 	<footer>
-<!--						<button name="prepare_product_for_update" invisible="context.get('process','') != 'prepare_product_for_update'" string="Prepare Product For Update" type="object" class="oe_highlight"/>-->
+<!--						<button name="prepare_sync_product_bru" invisible="context.get('process','') != 'prepare_product_for_export'" string="Prepare Product For Update Bru" type="object" class="oe_highlight"/>-->
                         <button name="prepare_product_for_export" invisible="context.get('process','') != 'prepare_product_for_export'" string="Prepare Product For Export" type="object" class="oe_highlight"/>
                         <button name="export_products" invisible="context.get('process','') != 'export_products'" string="Export Products" type="object" class="oe_highlight"/>
                         <button name="publish_multiple_products" invisible="context.get('process','') != 'publish_multiple_products'" string="Publish Multiple Products" type="object" class="oe_highlight"/>
